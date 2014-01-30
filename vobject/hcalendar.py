@@ -28,10 +28,10 @@ and an equivalent event in hCalendar format with various elements optimized appr
 </span>
 """
 
-from base import foldOneLine, CRLF, registerBehavior
-from icalendar import VCalendar2_0
+from .base import foldOneLine, CRLF, registerBehavior
+from .icalendar import VCalendar2_0
 from datetime import date, datetime, timedelta
-import StringIO
+import io
 
 class HCalendar(VCalendar2_0):
     name = 'HCALENDAR'
@@ -42,7 +42,7 @@ class HCalendar(VCalendar2_0):
         Serialize iCalendar to HTML using the hCalendar microformat (http://microformats.org/wiki/hcalendar)
         """
         
-        outbuf = buf or StringIO.StringIO()
+        outbuf = buf or io.StringIO()
         level = 0 # holds current indentation level        
         tabwidth = 3
         

@@ -1,6 +1,6 @@
 """Behavior (validation, encoding, and transformations) for vobjects."""
 
-import base
+from . import base
 
 #------------------------ Abstract class for behavior --------------------------
 class Behavior(object):
@@ -84,7 +84,7 @@ class Behavior(object):
                     return False
                 name=child.name.upper()
                 count[name] = count.get(name, 0) + 1
-            for key, val in cls.knownChildren.iteritems():
+            for key, val in cls.knownChildren.items():
                 if count.get(key,0) < val[0]: 
                     if raiseException:
                         m = "%s components must contain at least %i %s"

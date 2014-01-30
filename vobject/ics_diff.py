@@ -1,5 +1,5 @@
 """Compare VTODOs and VEVENTs in two iCalendar sources."""
-from base import Component, getBehavior, newFromBehavior
+from .base import Component, getBehavior, newFromBehavior
 
 def getSortKey(component):
     def getUID(component):
@@ -32,7 +32,7 @@ def deleteExtraneous(component, ignore_dtstamp=False):
     for comp in component.components():
         deleteExtraneous(comp, ignore_dtstamp)
     for line in component.lines():
-        if line.params.has_key('X-VOBJ-ORIGINAL-TZID'):
+        if 'X-VOBJ-ORIGINAL-TZID' in line.params:
             del line.params['X-VOBJ-ORIGINAL-TZID']
     if ignore_dtstamp and hasattr(component, 'dtstamp_list'):
         del component.dtstamp_list
@@ -98,8 +98,8 @@ def diff(left, right):
         any differing children.
         
         """        
-        leftChildKeys = leftComp.contents.keys()
-        rightChildKeys = rightComp.contents.keys()
+        leftChildKeys = list(leftComp.contents.keys())
+        rightChildKeys = list(rightComp.contents.keys())
         
         differentContentLines = []
         differentComponents = {}
@@ -135,14 +135,14 @@ def diff(left, right):
                 left.add( 'uid').value = uid
                 right.add('uid').value = uid
                 
-            for name, childPairList in differentComponents.iteritems():
-                leftComponents, rightComponents = zip(*childPairList)
+            for name, childPairList in differentComponents.items():
+                leftComponents, rightComponents = list(zip(*childPairList))
                 if len(leftComponents) > 0:
                     # filter out None
-                    left.contents[name] = filter(None, leftComponents)
+                    left.contents[name] = [_f for _f in leftComponents if _f]
                 if len(rightComponents) > 0:
                     # filter out None
-                    right.contents[name] = filter(None, rightComponents)
+                    right.contents[name] = [_f for _f in rightComponents if _f]
             
             for leftChildLine, rightChildLine in differentContentLines:
                 nonEmpty = leftChildLine or rightChildLine
@@ -165,18 +165,18 @@ def diff(left, right):
 
 def prettyDiff(leftObj, rightObj):
     for left, right in diff(leftObj, rightObj):
-        print "<<<<<<<<<<<<<<<"
+        print("<<<<<<<<<<<<<<<")
         if left is not None:
             left.prettyPrint()
-        print "==============="
+        print("===============")
         if right is not None:
             right.prettyPrint()
-        print ">>>>>>>>>>>>>>>"
-        print
+        print(">>>>>>>>>>>>>>>")
+        print()
         
         
 from optparse import OptionParser
-import icalendar, base
+from . import icalendar, base
 import os
 import codecs
 
@@ -205,9 +205,9 @@ def getOptions():
 
     (cmdline_options, args) = parser.parse_args()
     if len(args) < 2:
-        print "error: too few arguments given"
-        print
-        print parser.format_help()
+        print("error: too few arguments given")
+        print()
+        print(parser.format_help())
         return False, False
 
     return cmdline_options, args
@@ -216,4 +216,4 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print "Aborted"
+        print("Aborted")

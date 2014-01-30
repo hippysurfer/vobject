@@ -76,8 +76,9 @@ VObject Overview
     
 """
 
-import base, icalendar, vcard
-from base import readComponents, readOne, newFromBehavior
+from . import base
+from . import icalendar, vcard
+from .base import readComponents, readOne, newFromBehavior
 
 def iCalendar():
     return newFromBehavior('vcalendar', '2.0')

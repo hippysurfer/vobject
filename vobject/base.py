@@ -4,9 +4,8 @@ import copy
 import re
 import sys
 import logging
-import StringIO, cStringIO
+import io, io
 import string
-import exceptions
 import codecs
 
 #------------------------------------ Logging ----------------------------------
@@ -120,7 +119,7 @@ class VBase(object):
         else:
             try:
                 return self.behavior.transformToNative(self)
-            except Exception, e:      
+            except Exception as e:      
                 # wrap errors in transformation in a ParseError
                 lineNumber = getattr(self, 'lineNumber', None)
                 if isinstance(e, ParseError):
@@ -131,7 +130,7 @@ class VBase(object):
                     msg = "In transformToNative, unhandled exception: %s: %s"
                     msg = msg % (sys.exc_info()[0], sys.exc_info()[1])
                     new_error = ParseError(msg, lineNumber)
-                    raise ParseError, new_error, sys.exc_info()[2]
+                    raise ParseError(new_error).with_traceback(sys.exc_info()[2])
                 
 
     def transformFromNative(self):
@@ -150,7 +149,7 @@ class VBase(object):
         if self.isNative and self.behavior and self.behavior.hasNative:
             try:
                 return self.behavior.transformFromNative(self)
-            except Exception, e:
+            except Exception as e:
                 # wrap errors in transformation in a NativeError
                 lineNumber = getattr(self, 'lineNumber', None)
                 if isinstance(e, NativeError):
@@ -161,7 +160,7 @@ class VBase(object):
                     msg = "In transformFromNative, unhandled exception: %s: %s"
                     msg = msg % (sys.exc_info()[0], sys.exc_info()[1])
                     new_error = NativeError(msg, lineNumber)
-                    raise NativeError, new_error, sys.exc_info()[2]
+                    raise NativeError(new_error).with_traceback(sys.exc_info()[2])
         else: return self
 
     def transformChildrenToNative(self):
@@ -190,7 +189,7 @@ class VBase(object):
 
 def ascii(s):
     """Turn s into a printable string.  Won't work for 8-bit ASCII."""
-    return unicode(s).encode('ascii', 'replace')
+    return str(s).encode('ascii', 'replace')
 
 def toVName(name, stripNum = 0, upper = False):
     """
@@ -247,7 +246,7 @@ class ContentLine(VBase):
             else:
                 paramlist = self.params.setdefault(x[0].upper(), [])
                 paramlist.extend(x[1:])
-        map(updateTable, params)
+        list(map(updateTable, params))
         qp = False
         if 'ENCODING' in self.params:
             if 'QUOTED-PRINTABLE' in self.params['ENCODING']:
@@ -264,13 +263,13 @@ class ContentLine(VBase):
         # self.value should be unicode for iCalendar, but if quoted-printable
         # is used, or if the quoted-printable state machine is used, text may be
         # encoded
-        if type(self.value) is str:
-            charset = 'iso-8859-1'
-            if 'CHARSET' in self.params:
-                charsets = self.params.pop('CHARSET')
-                if charsets:
-                    charset = charsets[0]
-            self.value = unicode(self.value, charset)
+        #if type(self.value) is str:
+        #    charset = 'iso-8859-1'
+        #    if 'CHARSET' in self.params:
+        #        charsets = self.params.pop('CHARSET')
+        #        if charsets:
+        #            charset = charsets[0]
+        #    self.value = str(self.value, charset)
 
     @classmethod
     def duplicate(clz, copyit):
@@ -303,7 +302,7 @@ class ContentLine(VBase):
            completion.
 
         """
-        keys = self.params.keys()
+        keys = list(self.params.keys())
         params = [param + '_param' for param in keys]
         params.extend(param + '_paramlist' for param in keys)
         return params
@@ -321,9 +320,9 @@ class ContentLine(VBase):
             elif name.endswith('_paramlist'):
                 return self.params[toVName(name, 10, True)]
             else:
-                raise exceptions.AttributeError, name
+                raise AttributeError(name)
         except KeyError:
-            raise exceptions.AttributeError, name
+            raise AttributeError(name)
 
     def __setattr__(self, name, value):
         """Make params accessible via self.foo_param or self.foo_paramlist.
@@ -358,7 +357,7 @@ class ContentLine(VBase):
             else:
                 object.__delattr__(self, name)
         except KeyError:
-            raise exceptions.AttributeError, name
+            raise AttributeError(name)
 
     def valueRepr( self ):
         """transform the representation of the value according to the behavior,
@@ -366,22 +365,24 @@ class ContentLine(VBase):
         v = self.value
         if self.behavior:
             v = self.behavior.valueRepr( self )
-        return ascii( v )
+        #return ascii( v )
+        return v
         
     def __str__(self):
-        return "<"+ascii(self.name)+ascii(self.params)+self.valueRepr()+">"
+        #return "<"+ascii(self.name)+ascii(self.params)+self.valueRepr()+">"
+        return "<{!r}{!r}{!r}>".format(self.name,str(self.params),self.valueRepr()).decode()
 
     def __repr__(self):
         return self.__str__().replace('\n', '\\n')
 
     def prettyPrint(self, level = 0, tabwidth=3):
         pre = ' ' * level * tabwidth
-        print pre, self.name + ":", self.valueRepr()
+        print(pre, self.name + ":", self.valueRepr())
         if self.params:
-            lineKeys= self.params.keys()
-            print pre, "params for ", self.name +':'
+            lineKeys= list(self.params.keys())
+            print(pre, "params for ", self.name +':')
             for aKey in lineKeys:
-                print pre + ' ' * tabwidth, aKey, ascii(self.params[aKey])
+                print(pre + ' ' * tabwidth, aKey, ascii(self.params[aKey]))
 
 class Component(VBase):
     """A complex property that can contain multiple ContentLines.
@@ -424,7 +425,7 @@ class Component(VBase):
         
         # deep copy of contents
         self.contents = {}
-        for key, lvalue in copyit.contents.items():
+        for key, lvalue in list(copyit.contents.items()):
             newvalue = []
             for value in lvalue:
                 newitem = value.duplicate(value)
@@ -453,8 +454,8 @@ class Component(VBase):
            completion.
 
         """
-        names = self.contents.keys()
-        names.extend(name + '_list' for name in self.contents.keys())
+        names = list(self.contents.keys())
+        names.extend(name + '_list' for name in list(self.contents.keys()))
         return names
 
     def __getattr__(self, name):
@@ -474,7 +475,7 @@ class Component(VBase):
             else:
                 return self.contents[toVName(name)][0]
         except KeyError:
-            raise exceptions.AttributeError, name
+            raise AttributeError(name)
 
     normal_attributes = ['contents','name','behavior','parentBehavior','group']
     def __setattr__(self, name, value):
@@ -510,7 +511,7 @@ class Component(VBase):
             else:
                 object.__delattr__(self, name)
         except KeyError:
-            raise exceptions.AttributeError, name
+            raise AttributeError(name)
 
     def getChildValue(self, childName, default = None, childNumber = 0):
         """Return a child's value (the first, by default), or None."""
@@ -567,7 +568,7 @@ class Component(VBase):
 
     def getChildren(self):
         """Return an iterable of all children."""
-        for objList in self.contents.values():
+        for objList in list(self.contents.values()):
             for obj in objList: yield obj
 
     def components(self):
@@ -583,7 +584,7 @@ class Component(VBase):
             first = [s for s in self.behavior.sortFirst if s in self.contents]
         except:
             first = []
-        return first + sorted(k for k in self.contents.keys() if k not in first)
+        return first + sorted(k for k in list(self.contents.keys()) if k not in first)
 
     def getSortedChildren(self):
         return [obj for k in self.sortChildKeys() for obj in self.contents[k]]
@@ -597,14 +598,14 @@ class Component(VBase):
         """Recursively replace children with their native representation."""
         #sort to get dependency order right, like vtimezone before vevent
         for childArray in (self.contents[k] for k in self.sortChildKeys()):
-            for i in xrange(len(childArray)):
+            for i in range(len(childArray)):
                 childArray[i]=childArray[i].transformToNative()
                 childArray[i].transformChildrenToNative()
 
     def transformChildrenFromNative(self, clearBehavior=True):
         """Recursively transform native children to vanilla representations."""
-        for childArray in self.contents.values():
-            for i in xrange(len(childArray)):
+        for childArray in list(self.contents.values()):
+            for i in range(len(childArray)):
                 childArray[i]=childArray[i].transformFromNative()
                 childArray[i].transformChildrenFromNative(clearBehavior)
                 if clearBehavior:
@@ -622,7 +623,7 @@ class Component(VBase):
 
     def prettyPrint(self, level = 0, tabwidth=3):
         pre = ' ' * level * tabwidth
-        print pre, self.name
+        print(pre, self.name)
         if isinstance(self, Component):
             for line in self.getChildren():
                 line.prettyPrint(level + 1, tabwidth)
@@ -811,7 +812,7 @@ def getLogicalLines(fp, allowQP=True, findBegin=False):
     if not allowQP:
         bytes = fp.read(-1)
         if len(bytes) > 0:
-            if type(bytes[0]) == unicode:
+            if type(bytes[0]) == str:
                 val = bytes
             elif not findBegin:
                 val = bytes.decode('utf-8')
@@ -824,13 +825,13 @@ def getLogicalLines(fp, allowQP=True, findBegin=False):
                     except UnicodeDecodeError:
                         pass
                 else:
-                    raise ParseError, 'Could not find BEGIN when trying to determine encoding'
+                    raise ParseError('Could not find BEGIN when trying to determine encoding')
         else:
             val = bytes
         
         # strip off any UTF8 BOMs which Python's UTF8 decoder leaves
 
-        val = val.lstrip( unicode( codecs.BOM_UTF8, "utf8" ) )
+        val = val.lstrip( str( codecs.BOM_UTF8, "utf8" ) )
 
         lineNumber = 1
         for match in logical_lines_re.finditer(val):
@@ -841,7 +842,7 @@ def getLogicalLines(fp, allowQP=True, findBegin=False):
         
     else:
         quotedPrintable=False
-        newbuffer = StringIO.StringIO
+        newbuffer = io.StringIO
         logicalLine = newbuffer()
         lineNumber = 0
         lineStartNumber = 0
@@ -919,9 +920,9 @@ def foldOneLine(outbuf, input, lineLength = 75):
                 written = len(input)
             else:
                 # Check whether next char is valid utf8 lead byte
-                while (input[offset] > 0x7F) and ((ord(input[offset]) & 0xC0) == 0x80):
-                    # Step back until we have a valid char
-                    offset -= 1
+                #while (input[offset] > 0x7F) and ((ord(input[offset]) & 0xC0) == 0x80):
+                #    # Step back until we have a valid char
+                #    offset -= 1
                 
                 line = input[start:offset]
                 outbuf.write(line)
@@ -933,7 +934,7 @@ def foldOneLine(outbuf, input, lineLength = 75):
 def defaultSerialize(obj, buf, lineLength):
     """Encode and fold obj and its children, write to buf or return a string."""
 
-    outbuf = buf or cStringIO.StringIO()
+    outbuf = buf or io.StringIO()
 
     if isinstance(obj, Component):
         if obj.group is None:
@@ -951,11 +952,13 @@ def defaultSerialize(obj, buf, lineLength):
     elif isinstance(obj, ContentLine):
         startedEncoded = obj.encoded
         if obj.behavior and not startedEncoded: obj.behavior.encode(obj)
-        s=codecs.getwriter('utf-8')(cStringIO.StringIO()) #unfolded buffer
+        #s=codecs.getwriter('utf-8')(cStringIO.StringIO()) #unfolded
+        #buffer
+        s = io.StringIO()
         if obj.group is not None:
             s.write(obj.group + '.')
         s.write(obj.name.upper())
-        keys = sorted(obj.params.iterkeys())
+        keys = sorted(obj.params.keys())
         for key in keys:
             paramvals = obj.params[key]
             s.write(';' + key + '=' + ','.join(dquoteEscape(p) for p in paramvals))
@@ -1010,8 +1013,8 @@ def readComponents(streamOrString, validate=False, transform=True,
     <SUMMARY{u'BLAH': [u'hi!']}Bastille Day Party>
     
     """
-    if isinstance(streamOrString, basestring):
-        stream = StringIO.StringIO(streamOrString)
+    if isinstance(streamOrString, str):
+        stream = io.StringIO(streamOrString)
     else:
         stream = streamOrString
 
@@ -1023,7 +1026,7 @@ def readComponents(streamOrString, validate=False, transform=True,
             if ignoreUnreadable:
                 try:
                     vline = textLineToContentLine(line, n)
-                except VObjectError, e:
+                except VObjectError as e:
                     if e.lineNumber is not None:
                         msg = "Skipped line %(lineNumber)s, message: %(msg)s"
                     else:
@@ -1070,7 +1073,7 @@ def readComponents(streamOrString, validate=False, transform=True,
                 raise ParseError("Component %s was never closed" % (stack.topName()), n)
             yield stack.pop()
 
-    except ParseError, e:
+    except ParseError as e:
         e.input = streamOrString
         raise
 
@@ -1078,8 +1081,8 @@ def readComponents(streamOrString, validate=False, transform=True,
 def readOne(stream, validate=False, transform=True, findBegin=True,
             ignoreUnreadable=False, allowQP=False):
     """Return the first component from stream."""
-    return readComponents(stream, validate, transform, findBegin,
-                          ignoreUnreadable, allowQP).next()
+    return next(readComponents(stream, validate, transform, findBegin,
+                          ignoreUnreadable, allowQP))
 
 #--------------------------- version registry ----------------------------------
 __behaviorRegistry={}
